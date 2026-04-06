@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: luxe_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: luxe_secret_2026
+      MONGO_INITDB_DATABASE: luxe_ecommerce
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - luxe_network
+
+  # Redis
+  redis:
+    image: redis:7.2-alpine
+    container_name: luxe_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - luxe_network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: luxe_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://admin:luxe_secret_2026@mongodb:27017/luxe_ecommerce?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your_super_secret_jwt_key_change_in_production
+      JWT_EXPIRE: 7d
+      JWT_REFRESH_SECRET: your_refresh_secret_change_in_production
+      JWT_REFRESH_EXPIRE: 30d
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ./backend/uploads:/app/uploads
+    networks:
+      - luxe_network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: luxe_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_API_URL: http://localhost:5000/api
+      REACT_APP_SOCKET_URL: http://localhost:5000
+    depends_on:
+      - backend
+    networks:
+      - luxe_network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  luxe_network:
+    driver: bridge
